@@ -1,0 +1,138 @@
+---
+title: "lab_01"
+author: "Derek Willis, adapted by Aidan Hughes"
+date: "2026-08-25"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Turn off scientific notation
+options(scipen=999)
+```
+
+## About this lab
+
+To complete this lab, you need to: \* run existing code as directed (look for **Task**). \* modify existing code as directed (look for **Task**). \* write code in empty codeblocks provided to answer questions included (look for **Q**). \* write out the answer in the form of a complete sentence in the space given (look for **A**). When you are finished, commit changes and push to your personal GitHub repo, then submit the URL to this document on ELMS.
+
+Remember to add any new verbs or concepts to your reference notebook!
+
+## Load libraries and establish settings
+
+**Task** Run the codeblock below to load the Tidyverse. To run the codeblock, hit the little green play button in the upper right corner of the gray area (the codeblock) below.
+
+```{r}
+# Load the tidyverse. If you have not installed the tidyverse already, remove the # from the next line and run it first.  
+# install.packages('tidyverse')
+library(tidyverse)
+```
+
+## Load Data
+
+We're going to load the slice of WinRed contribution data from West Virginia, which is in a file called `lab_01.rds`
+
+**Task** Using the example from the pre_lab, write code to load the RDS file and assign it to a good variable name.
+
+```{r}
+WinRed_WestVirginia <- read_rds("lab_01.rds")
+```
+
+## Examine Data
+
+**Task** Run the codeblock below to use glimpse to get a sense of the column names, types and sample data.
+
+```{r}
+# put the name of your data set, which you named in the last step, inside the () below
+glimpse(WinRed_WestVirginia)
+```
+
+
+**Q1** How many rows and columns does this dataframe have?
+
+
+**A1** 40,441 rows (observations) and 24 columns (variables)
+
+
+## Answer questions
+
+**Q2** Which West Virginia city provided the largest number of contributions? How many?
+
+Hint: you'll need to use group_by() |> summarise() here. What column are we grouping by? Then, what should go inside the summarise() part? Then, rather than clicking through the 500+ cities to find the largest one, use the same function we used in our pre-lab to sort the data from largest number to the smallest.
+
+**A2** Charleston
+
+```{r}
+WinRed_WestVirginia |>
+  group_by(city) |>
+  summarise(count_contribs = n())|>
+  arrange(desc(count_contribs))
+```
+
+**Q3** Which West Virginia cities accounted for the fewest contributions? You don't have to name all of them, but list a few. How many of those cities are there, roughly speaking?
+
+**A3** Allen Junction, Alum Bridge, BRIDGEPORT, Bergoo, Berkeley Spgs ;
+about 63 cities (had only one contribution)
+
+```{r}
+WinRed_WestVirginia |>
+  group_by(city) |>
+  summarise(count_contribs = n())|>
+  arrange(count_contribs)
+```
+
+**Q4** What's your best educated guess to explain why the city identified in question 2 had more contributions compared to the cities identified in question 3? Hint: you won't find the answer in the data, you'll need to do some quick web research. You do not need to write any code for this question, so no codeblock is provided.
+
+**A4** Charleston is the capital of WV and the state's most populous city. It is a political and economic center in WV. The large population and high political involvement would cause it to have the most contributions to a campaign. In contrast, Allen Junction and Alum Bridge are small unincorporated communities.
+
+**Q5** What recipient got the largest total amount of money? How many contributions did it receive? And what was the average donation it received?
+
+Hint: Since there three distinct questions here, you'll need to do multiple things inside summarise() this time.
+
+Hint 2: "aggregate_amount" is NOT the column you want to use here.
+
+**A5** "TRUMP NATIONAL COMMITTEE JFC, INC." was recorded as receiving the largest total amount of money. It received 14063 contributions. The average donation was $32.9904288. Note: These numbers are based on the first row. The recipient names TRUMP NATIONAL COMMITTEE JFC, INC. and TRUMP NATIONAL COMMITTEE JFC have the same Federal Election Commission (FEC) identification number (C00873893) and refer to the same joint fundraising committee (JFC).
+
+```{r}
+WinRed_WestVirginia |>
+  group_by(memo_text) |>
+  summarize(
+    count_contribs = n(),
+    total_amount = sum(amount),
+    mean_amount = mean(amount)
+  ) |>
+  arrange(desc(total_amount))
+
+```
+
+**Q6** What is that top recipient and what explains its popularity? Hint: this will require web research, you won't be able to answer this purely from the data set. You do not need to write any code for this question, so no codeblock is provided.
+
+**A6** Trump National Committee JFC, Inc. was the top recipient. This JFC joins Trump's donation base with the Republican National Committee (RNC) network, making it easy to raise more money. WV is also a majority-republican, pro-Trump state.
+
+**BONUS POINTS (do this last / only if you have time at the end)** you might notice that a lot of the top recipient committees seem to be tied to the same person, and some even have nearly-identical committee names. What might be going on here? (You don't need to get this RIGHT, just give me an educated guess or two.)
+
+**Q7**. Using the answer from A5 as a starting point, produce a summary table that has the following information for each recipient: \* count of contributions \* total amount of all contributions \* the average contribution amount \* the median contribution amount \* the smallest contribution amount \* the largest contribution amount
+
+Store it as a variable object called `wv_summary` so that you can examine it with the data viewer. What newsworthy nuggets jump out at you that you could imagine dropping into a news story? Write a few summary sentences with overall findings.
+
+**A7** To the question asked about what's going on with top recipient names tied to same person and some identical-> data entry inconsistencies ... people typing the names of the recipient they want to donate to, or maybe this is a combination of data from a few sources. But side note, looking at the data, I don't spot name redundancies (besides the Trump one I mentioned earlier) in the first 30 rows, at least with a few glance-overs. Maybe this question partly refers to money getting to the same people through the multiple republican groups listed? Since WV is majority-republican, these being high on the list would make sense.
+
+WAIT I won't take the time to edit the above but I now see TRUMP SAVE AMERICA JOINT FUNDRAISING COMMITTEE listed in addition to the aforementioned JFC. I see where this suggests Trump getting money from two sources. I suppose this is because someone can choose to donate to just Trump or to Trump plus the RNC (via the JFC).
+
+Newsworthy nuggets:
+- "Refund of Earmarked Contribution" -> ?? Why did so many people ask for their contributions back / withdraw their donations? (If that's accurate.)
+- TRUMP NATIONAL COMMITTEE JFC, INC. received more contributions and money than TRUMP SAVE AMERICA JOINT FUNDRAISING COMMITTEE
+- The highest mean monetary amounts (when I go to mean and sort by descending order) were GUTHRIE FOR CONGRESS, FAIR COURTS AMERICA, CAROL FOR CONGRESS, NEW HAMPSHIRE REPUBLICAN STATE COMMITTEE, and CAREY FOR CONGRESS -- the first two of which each received one donation. These were very wealthy donors -- perhaps foundations/organizations if not people. Someone could continue down the list and look at the likely general economic class distribution across donor bases for different recipients as well as researching which recipients had more contributions from individual citizens versus organizations.
+
+```{r}
+wv_summary <- WinRed_WestVirginia |>
+  group_by(memo_text) |>
+  summarize(
+    count_contribs = n(),
+    total_amount = sum(amount),
+    mean_amount = mean(amount),
+    median_amount = median(amount),
+    min_amount = min(amount),
+    max_amount = max(amount)
+  ) |>
+  arrange(desc(total_amount))
+```
