@@ -1,0 +1,150 @@
+---
+title: "lab_02"
+author: "Derek Willis, adapted by Aidan Hughes"
+date: "2024-08-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load libraries and establish settings
+
+```{r}
+# Turn off scientific notation
+options(scipen=999)
+
+# Load the tidyverse. If you have not installed the tidyverse already, remove the # from the next line and run it first.  
+# install.packages('tidyverse')
+library(tidyverse)
+library(lubridate)
+```
+
+## Load Data
+
+For this lab we'll be working with a slice of Maryland voter registration data: records of people who have registration dates this year through Aug. 7. Let's load it.
+
+```{r}
+md_voters_2024 <- read_rds("data/lab_02.rds")
+```
+
+## Examine Data
+
+Take a look at the data, getting familiar with what it contains. Most of the columns should be self-explanatory, but there are two date columns: STATE_REGISTRATION_DATE and COUNTY_REGISTRATION_DATE. The former represents the date the person registered as a Maryland voter; the latter is when they registered in their current county. They may be the same, but if a voter moves from one county to another they will differ. This is important because if the two dates are the same, that's a pretty good indication that this is a *new* voter, someone who has no history of registering in Maryland. You'll need to keep that definition in mind.
+
+## Answer questions
+
+**Q1** How many voters appear to be *new* registrants since July 21, when President Joe Biden announced he would leave the race, based on the information above? Create a dataframe to hold the only those voters.
+
+Which counties have seen the most? Take a look at county population figures here and compare that list with your data findings in your answer: https://worldpopulationreview.com/us-counties/maryland. 
+Note: here will use group_by and summarize
+
+**A1**
+
+17076 voters
+
+In descending order
+Montgomery County, Baltimore City, Baltimore County, Prince George's County, Anne Arundel County
+
+```{r}
+# Combining filters (ref Task 12 pre-lab)
+# fyi try putting thing filtering for in quotes instead of filtering by dates
+# make new dataframe/dataset/variable (variable as in that shows in Environment window under Data, not column) called new_md_voters_2024
+# new_md_voters_2024 holds data from md_voters_2024...
+new_md_voters_2024 <- md_voters_2024 |>
+  # where both state data and county date are July 21
+  filter(STATE_REGISTRATION_DATE == COUNTY_REGISTRATION_DATE) |>
+  filter(COUNTY_REGISTRATION_DATE > "2024-07-21")
+  # then see the number of rows in this new dataframe
+  nrow(new_md_voters_2024)
+  # which will give the number of voters who are new registrants since July 21
+```
+
+```{r}
+new_md_voters_2024 |>
+  group_by(COUNTY) |>
+  summarize(total_voters = n()) |>
+  arrange(desc(total_voters))
+```
+
+
+**Q2** A better question is whether the new voters you found in Q1 are an outlier compared to other weeks this year. Using the original dataframe with 2024 registrants, use `mutate()` and lubridate to produce week numbers from the COUNTY_REGISTRATION_DATE (Lubridate has a function that turns a date into a week number. Use that to answer this question). Save that to the original dataframe. Then calculate how many voters are in each week. Describe the distribution of voters groups in a sentence - are the weeks from July 21-August 7 different from the rest, and if so, how?
+
+Note: Google what function use, turn weeks into numbers ; e.g. convert Jan 3 to week 1. Google "How to turn date into week number" and use one of the functions you will see are options
+
+Note fyi not related to this topic specifically:
+When you need to rewrite code in a code block, instead of retyping it and trying to run only that code again, go up to the first time you read the file needed (e.g. here, md_voters_2024 <- read_rds("data/lab_02.rds")); run that code block and every one after it until you get to the code you want to edit. Edit it and run it, and thus no error message.
+
+Note: July 21 is week . Aug 7 is week 
+
+**A2**
+Running out of time before deadline. I would find what number week the two above dates are ^ and then I would prob change what I did earlier in the second codeblock below to asc (so the default of arrange) of COUNTY_REGISTRATION_WEEK to answer this
+
+
+```{r}
+md_voters_2024 <- md_voters_2024 |>
+  mutate(COUNTY_REGISTRATION_WEEK=week(COUNTY_REGISTRATION_DATE))
+```
+
+```{r}
+md_voters_2024 |>
+  group_by(COUNTY_REGISTRATION_WEEK) |>
+  summarize(total_voters = n()) |>
+  arrange(desc(total_voters))
+```
+
+
+**Q3** Using lubridate, show which month saw the largest number of registrations. Does the answer help shed more light on Q2?
+**A3** Okay so this is where I would use what I typed earlier in above codeblock. But with month. I know week 24 above, but I would look at month instead here.
+
+```{r}
+
+```
+
+**Q4** Maryland has, officially, five regions: https://www.visitmaryland.org/article/maryland-regions. Modify the original dataframe again to add a `region` column based on the `COUNTY` value using case_when. Are you going to have to do this for every Maryland county plus Baltimore City? Yes, you are.
+
+Which regions and parties account for the most new voters?
+
+**A4** 
+use mutate to add region column... 
+```{r}
+```
+
+
+**Q5** Filter md_voters_2024 to only include voters from the Capital region or the Western region. Save the data in a new variable/data set named capital_or_western.
+
+How many voters are in the new data set?
+
+```{r}
+
+```
+
+
+**Q6** Finally, filter md_voters_2024 to only include voters who meet BOTH of these conditions:
+
+1) they are from the Eastern Shore region or Western region
+2) their party affiliation is DEM and their Gender is F
+
+Hint: you can accomplish this with two filters
+
+Save the data in a new variable/data set named final_filter.
+
+How many voters are in the new data set?
+
+```{r}
+
+```
+
+
+
+
+**BONUS QUESTION** What's an additional journalistic question you could ask of this data? Show me the code you'd use to do it below, or at least describe the logic step-by-step in English if you're not sure how to write the code for it yet.
+
+
+**A** 
+
+```{r}
+
+```
+
