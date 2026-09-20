@@ -1,0 +1,196 @@
+---
+title: "lab_03"
+author: "Derek Willis, adapted by Aidan Hughes"
+date: "2024-08-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Load libraries and establish settings
+
+```{r}
+# Turn off scientific notation
+options(scipen=999)
+
+# Load the tidyverse
+library(tidyverse)
+
+# Load janitor
+library(janitor)
+```
+
+### Load data
+
+```{r}
+# Load MD slice of FEC House candidate contribution data
+md_contribs <- read_rds("data/lab_03.rds")
+```
+
+### Do this first: Fix header (as in column name) issues
+
+You'll need to fix one issue with the column names using janitor. Write a code block to do that, making sure that you save the results to the same dataframe.
+
+```{r}
+# cleaning function for column names
+md_contribs <- md_contribs |>
+  clean_names()
+
+# display the cleaned dataset
+md_contribs
+```
+
+
+### **Q1**: Which seven cities in Maryland had the largest *number* of contributions from donors? How many did each have? To answer this question, you'll have to clean the messy "contributor_city" field.
+
+Note: To answer this question, you'll need to see every variation of the "contributor_city" for the top seven cities, which you should identify through some initial analysis. Then find variations of them and change those variations into the most common version.
+
+Hint: you should be starting out with a group_by and summarize just like we did in week 1 and 2. That'll help you identify the top seven names, and then you can click through the data to find variations of those names.
+
+Then, look back at Task 15 in Pre-Lab 3 for a clue about how to update specific values. Don't forget, you'll need a step at the end to ensure that everything aside from the values you're changing stay as the default value.
+
+**A1:** *The top seven cities are BETHESDA, CHEVY CHASE, BALTIMORE, ANNAPOLIS, POTOMAC, SILVER SPRING, and ROCKVILLE. Contribs are 1177, 704, 690, 490, 490, 405, and 358, respectively.*
+
+```{r}
+md_contribs |>
+  # group by city
+  group_by(contributor_city) |>
+  # see number of contribs per city
+  summarise(count_contribs = n())|>
+  # arrange desc order, most contribs at top
+  arrange(desc(count_contribs))
+```
+
+*^ I found in the initial dataset arrangement from the code above that the top seven cities (in this table-- not for certain overall bc there is city name variation right now) are BETHESDA, CHEVY CHASE, BALTIMORE, ANNAPOLIS, POTOMAC, SILVER SPRING, ROCKVILLE*
+
+```{r}
+# I want to make it easier to catch city name variations. To do this, I'll arrange by city alphabetical order. Note, this doesn't ensure catching all name variations.
+# I Googled how to arrange by alphabetical order. Several sources indicated alphabetical is automatic if you use arrange() with char string inside. Example source: https://bookdown.org/yih_huynh/Guide-to-R-Book/arrange.html
+md_contribs |>
+  # group by city
+  group_by(contributor_city) |>
+  # see number of contribs per city
+  summarise(count_contribs = n())|>
+  # arrange cities alphabetically A-Z
+  arrange(contributor_city)
+```
+
+*I used the above data table to find city repeats, which I use in the following codeblock.*
+
+```{r}
+md_contribs |>
+  group_by(contributor_city) |>
+  summarise(count_contribs = n())|>
+  arrange(desc(count_contribs)) |>
+# now fix those names that have variations, of the seven aforementioned cities
+  mutate(contributor_city = case_when(
+    contributor_city == "ANAPOLIS" ~ "ANNAPOLIS",
+    contributor_city == "BALRIMORE" ~ "BALTIMORE",
+    contributor_city == "BLATIMORE" ~ "BALTIMORE",
+    contributor_city == "POTAMIC" ~ "POTOMAC",
+    contributor_city == "ROCKWELL" ~ "ROCKVILLE",
+    contributor_city == "SILVER SPRINGS" ~ "SILVER SPRING",
+    # make sure R doesn't alter any of the other city names (.default)
+    .default = contributor_city
+  ))
+
+```
+
+### **Q2:** Find the 5-digit ZIP code in Maryland that had the highest total amount of contributions (by dollar value).
+
+### Where is that zip code and what kind of area is it, demographically? Which committee is the largest recipient of money from that zip code? How many of the top five recipients are Maryland candidates?
+
+Hint: You will need to use mutate and str_sub to ensure that you have a zip code column with the first five characters from the existing zip code column.
+
+Other functions you'll need afterwards are filter, group by, summarise, and arrange.
+
+Break this down into individual steps and check your work along the way. That'll make this question more manageable.
+
+Note in-class announcement: When do filter statement, if trying to filter a number, check data type of column first. No quotes if the number is already dbl, quotes if chr
+
+**A2:**
+
+*Zip code 20817, total contribution amount $731,489.80. It's in Bethesda, MD. Google zip code: Montgomery County.*
+
+*According to this webpage (https://worldpopulationreview.com/us-counties/maryland) from the World Population Review, which used 2026 U.S. Census data, Montgomery County is the most populous county in Maryland. According to this webpage (https://www.neilsberg.com/insights/lists/average-household-income-by-city-in-montgomery-county-md/) from Neilsberg.com, with data it says is pulled from the "U.S. Census Bureau American Community Survey (ACS) 2020-2024 5-Year Estimates," Bethesda was one of the top five wealthiest cities in Montgomery County between 2020 and 2024, based on average household income. I also know that Bethesda is one of the wealthier cities in Maryland overall. The large population and relatively high income in this zip code could explain why the most contributions came from it.*
+
+*For top five committees in zip 20817, look at top in committees_top_zip_md_contribs and Google states: HELMER FOR CONGRESS (VA), FRIENDS OF RAJA FOR CONGRESS (IL), JAMIE RASKIN FOR CONGRESS (MD), FRENCH HILL FOR ARKANSAS (AR), APRIL MCCLAIN DELANEY FOR CONGRESS (MD). Two of the top five committees represent candidates who ran in MD.*
+
+Note to self: Recall these are campaign contribs, not votes- someone might send money to AOC in NY even though they live in MD.
+
+```{r}
+cleaned_zips_md_contribs <- md_contribs |>
+mutate(zip = str_sub(contributor_zip, start=1L, end=5L)) |>
+  group_by(zip) |>
+  summarise(total_contrib_amount = sum(contribution_receipt_amount))|>
+  arrange(desc(total_contrib_amount))
+```
+
+Found from above that 20817 is the top zip code.
+
+```{r}
+top_zip_md_contribs <- md_contribs |>
+mutate(zip = str_sub(contributor_zip, start=1L, end=5L)) |>
+  filter(zip == "20817")
+```
+
+```{r}
+committees_top_zip_md_contribs <- top_zip_md_contribs |>
+  group_by(committee_name) |>
+  summarise(total_contrib_amount = sum(contribution_receipt_amount))|>
+  arrange(desc(total_contrib_amount))
+```
+
+### **Q3:**
+
+### Let's look at top individual donors. Write code to generate a list of top donors in each city, adding up the total amount of contributions. What does the original data say about the top two donors - who are they and what do they do? Do you see anything in the list of top 10 donors that would make you uncertain about the accuracy of these results?
+
+Hint: you'll need to put two columns in a group_by to answer this question. What are the two categories you're trying to group the data by? Look back at Task 8 in Pre-lab 1 if you need a reminder of how to do this.
+
+**A3:**
+
+*Melanie Jacobsen and Mark P. Jacobsen appear to be the top two donors (without cleaning of candidate names). Their occupations: Melanie Jacobsen is an attorney (according to first page of Google results, including LinkedIn); Mark P. Jacobsen is the co-founder and CEO at the financial services company IntraFi (according to first page of Google results, including LinkedIn). Attorneys and CEOs (of successful companies that have been around for a while; IntraFi started in 2002 according to LinkedIn profile) have higher-than-average salaries. Issue: Names would need cleaning for accuracy of numbers. For example, MARK JACOBSEN and MARK P. JACOBSEN represent the same candidate.*
+
+```{r}
+top_donors_md_contribs <- md_contribs |>
+  group_by(contributor_name, contributor_city) |>
+  summarize(total_contribs = sum(contribution_receipt_amount)) |>
+  arrange(desc(total_contribs))
+```
+
+### **BONUS QUESTION**
+
+### **Q:** What's another problem you can identify in the data? How would it impact your ability to do an accurate analysis of something? (Three bonus points)
+
+**A:**
+*The dates are currently chr data type instead of date data type. R will treat these as character strings instead of dates. The dates need hyphens instead of slashes and order ymd for R to accurately order and work with them. For example, when we use the functions arrange, sort and floor_date. (The issue arises whether it's all slashes or varying formats. We need to standardize.)*
+
+### Then, write code that would fix the issue. (Five bonus points)
+
+**A:**
+*Code (in a codeblock below): md_contribs <- md_contribs |> mutate(contribution_receipt_date=mdy(contribution_receipt_date))*
+
+```{r}
+# First, let's check what data type the dates currently are. I expect chr
+head(md_contribs)
+```
+
+Yes.
+
+```{r}
+# then, let's load lubridate library
+library(lubridate)
+```
+
+```{r}
+md_contribs <- md_contribs |>
+# mdy in function mdy() means month-date-year. It refers to the dates' current format.
+mutate(contribution_receipt_date=mdy(contribution_receipt_date))
+
+# use head() just to have a look
+head(md_contribs)
+```
+
+
