@@ -1,0 +1,211 @@
+---
+title: "Reverse Engineering Project"
+author: "Maya, Seann, Isabelle"
+date: "2026-11-12"
+output:
+  html_document:
+    theme: cerulean
+    highlight: pygments
+    toc: true
+    toc_float:
+      collapsed: true
+      smooth_scroll: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction 
+
+In this notebook, we are reverse engineering the story, [Boulder is not as politically polarized as you might think, election data show](https://boulderreportinglab.org/2023/12/18/boulder-is-not-as-politically-polarized-as-you-might-think-election-data-show/)
+
+## Load libraries
+
+Loading required libraries for this analysis.
+
+```{r echo=FALSE, message=FALSE}
+# Turn off scientific notation
+options(scipen=999)
+# load the tidyverse
+library(tidyverse)
+```
+
+## Load and Cleaning Data
+
+In this section, describe the source of the data, write a basic data dictionary for data you are working with, and discuss any caveats or issues you discovered working with this data. 
+
+Old info that relates to upcoming:
+When we first loaded in the data ( https://assets.bouldercounty.gov/wp-content/uploads/2023/11/Redacted-2023Coordinated-CVR.xlsx ; from https://bouldercounty.gov/elections/by-year/2023-election/), we found issues since the column names we needed were not the first row. So we went into the excel sheet and made it so that the first row had the column names CvrNumber, TabulatorNum, BatchId, RecordId, ImprintedId, BallotType; and then the names of each candidate (keeping the numbers in parentheses to represent the rankings 1-4 for mayoral candidates). We deleted the row with government position. We exported the adjusted file as a CSV to put in the data folder for the project.
+
+#THEN, WE UNDID THAT CODE and loaded the data into R AS IS to do that cleaning in R. Keeping the info here because it did help us visualize what we needed to do and it explains some of the things in the codeblocks.
+
+Side note: We also discovered from our first loading of data that the first data we used (the data linked in the story) was from 2026. It was on a webpage that updates with the latest voter data. We noticed that the candidate names in this story were not in there. So we found the 2023 Cast Vote Record (not linked in the story, linked above).
+
+We're not sure why many government positions (represented in column names) contain no data-- not zeros and ones, just blank cells all the way down.
+
+
+```{r}
+# Load the 2023 Boulder City Cast Vote Record data
+CVR <- read_csv("data/Redacted-2023Coordinated-CVR-OG.csv")
+```
+
+ChatGPT Convo: https://chatgpt.com/share/6acf19a2-e4e8-83ea-9d36-a6e0c904d797
+
+```{r}
+# Clean required data and prepare for analysis if needed.
+
+library(janitor)
+
+# make what is currently row two become the column names and eliminate rows above (rows = row one and currently-column-name row)
+CVR <- row_to_names(CVR, row_number = 2)
+
+# rename the now-empty column name cells based on position. Chose position instead of by name because R did not automatically assign the first column a name. It named the second column "NA.1", the third column "NA.2", and so on.
+
+names(CVR)[1] <- "cvr_number"
+names(CVR)[2] <- "tabulator_num"
+names(CVR)[3] <- "batch_ID"
+names(CVR)[4] <- "record_ID"
+names(CVR)[5] <- "imprinted_ID"
+names(CVR)[6] <- "ballot_type"
+
+# now get rid of another row not need -- first row 
+CVR <- CVR[-1, ]
+
+# Column names "Yes/For.7" and "No/Against.7" represent votes for and against City of Boulder Ballot Question 302 (a column name which used to exist but we removed it because of the format of voting for candidates), which was the question about "Safe Zones 4 Kids." We will need this data in one of the questions. Let's extract it and save it to its own dataframe before deleting excess columns in the CVR dataframe.
+
+# before select columns, why not rename them
+
+CVR <- CVR |>
+  rename(
+    yes_safe_zones = `Yes/For.7`,
+    no_safe_zones = `No/Against.7`
+  )
+
+# not sure why the above column name change is not working. Will return to it later.
+# still want to extract those columns and put them into their own dataframe before deleting them and other columns with names that are not candidate names (starting after Elizabeth Kearney)
+
+safe_zones <- CVR |>
+  select(`Yes/For.7`,`No/Against.7`)
+
+# As with previous code attempted, error says that `Yes/For.7` does not exist. Will return to this later.
+# Will hold off for now on making safe_zones dataframe and removing excess from CVR dataframe
+
+```
+
+
+## Sentences to Engineer
+In this notebook, we are reverse engineering five sentences from the story.
+
+### Sentence 1
+
+* **Sentence text**: "According to the analysis by Boulder Reporting Lab, approximately 19% of voters cast their ballots for the entire Boulder Elevated slate, exclusively voting for its candidates."
+
+Plan:
+For this finding, we can filter the data for people who voted exclusively for Bob Yates for mayor and for Terri Brncic, Jennifer (Jenny) Robins, Tina Marquis, and Tara Winer for city council. The 19% statistic corrects some people's perception that most voters cast ballots for one slate of candidates.
+
+118,787 observations (aka rows) (will be denominator for getting percentage) in dataset
+
+From below work: 6,522 obs (aka rows aka people) voted exclusively for the Boulder Elevated slate.
+
+6,522/118,787 = 0.0549 = 5.5 % -> far from 19%. What went wrong?
+
+Denominator too big? Looked into it more. This data is for the whole county, not just Boulder City.
+
+So I found the denominator we want from this webpage https://bouldervotes.org/2023.html : "34,249 city ballots counted."
+
+--> 6,522/34,249 = 0.1904289176 = 19%
+
+ChatGPT Convo: https://chatgpt.com/share/6acf194b-6cc0-83e9-bbbe-7a957b454a5a
+
+* **Analysis summary**: See the above explanation and notes in the codeblocks below. We were able to calculate the desired 19% by dividing the number of people who voted for council members Terri Brncic, Jenny Robins, Tina Marquis, and Tara Winer; and ranked Bob Yates number one of the four mayoral candidates-- by the number of Boulder City ballots cast.
+
+```{r}
+# Put code to reverse engineer sentence here
+CVR |>
+  filter(
+    `Bob Yates(1)`== 1,
+    `Terri Brncic` == 1,
+    `Jenny Robins` == 1,
+    `Tina Marquis` == 1,
+    `Tara Winer` == 1
+  ) |>
+
+# error says "Error in `filter()`: ! Can't transform a data frame with duplicate names. Run `rlang::last_trace()` to see where the error occurred."
+# don't know if R is treating the mayoral candidate names with different numbers in parentheses as duplicate names. I do not see repeats.
+# let's see; code below from
+# ChatGPT convo: https://chatgpt.com/share/6acf1b2f-64f4-83e9-a9a6-f4749c11cd50
+names(CVR)[duplicated(names(CVR))]
+
+# Ah yes. It's for those columns we were going to get rid of... those with "Yes/For" and "No/Against" have duplicates.
+# I will go ahead and make a new dataframe-- instead of changing the old one-- without the extra columns
+# remove columns by position easier than by name because range of many columns
+# found column numbers by looking in excel and using webpage "Excel Column Letter to Number Quick Reference" https://www.vishalon.net/blog/excel-column-letter-to-number-quick-reference
+CVR_candidates <- CVR |>
+  select(-(83:127))
+
+# now try earlier code chunk again but with new dataframe CVR_candidates
+CVR_candidates |>
+  filter(
+    `Bob Yates(1)`== 1,
+    `Terri Brncic` == 1,
+    `Jenny Robins` == 1,
+    `Tina Marquis` == 1,
+    `Tara Winer` == 1
+  ) |>
+  group_by(cvr_number)
+
+# I don't think the group_by is necessary, just following format we have been doing in class
+# "Display results of code below this codeblock" ->See visual that appears after run code above
+
+```
+
+### Sentence 2
+
+* **Sentence text**: [Paste in sentence to engineer here]
+* **Analysis summary**: [Write up two to three sentences describing the results of your analysis.  Were you able to confirm the finding? If not, why not?]
+
+```{r}
+# Put code to reverse engineer sentence here
+
+# Display results of code below this codeblock
+
+```
+
+### Sentence 3
+
+* **Sentence text**: [Paste in sentence to engineer here]
+* **Analysis summary**: [Write up two to three sentences describing the results of your analysis.  Were you able to confirm the finding? If not, why not?]
+
+```{r}
+# Put code to reverse engineer sentence here
+
+# Display results of code below this codeblock
+
+```
+
+### Sentence 4
+
+* **Sentence text**: [Paste in sentence to engineer here]
+* **Analysis summary**: [Write up two to three sentences describing the results of your analysis.  Were you able to confirm the finding? If not, why not?]
+
+```{r}
+# Put code to reverse engineer sentence here
+
+# Display results of code below this codeblock
+
+```
+
+### Sentence 5
+
+* **Sentence text**: [Paste in sentence to engineer here]
+* **Analysis summary**: [Write up two to three sentences describing the results of your analysis.  Were you able to confirm the finding? If not, why not?]
+
+```{r}
+# Put code to reverse engineer sentence here
+
+# Display results of code below this codeblock
+
+```
+
+-30-
