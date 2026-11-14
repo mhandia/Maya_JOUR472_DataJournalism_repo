@@ -1,0 +1,311 @@
+---
+title: "Post-Election Lab: The 2026 Texas U.S. Senate Race"
+author: "Aidan Hughes"
+date: "November 5, 2026"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+On November 3, 2026, Texans voted in an open U.S. Senate race between Democrat **James Talarico** and Republican **Ken Paxton**. In this lab, we'll analyze county-level results from that race, compare them to the 2024 Senate race (Colin Allred vs. Ted Cruz), and bring in Census Bureau data to see what demographic patterns line up with how counties voted.
+
+This lab uses **real, mostly-but-not-entirely-final results**. As of this data pull, the vast majority of Texas counties had more than 95% of precincts reporting, but a few had not. Keep that in mind as you interpret anything close.
+
+## You will need
+
+Our usual libraries for working with data, plus `tidycensus` for pulling in Census Bureau data. You'll need a free Census API key (sign up at https://api.census.gov/data/key_signup.html) and have it installed with `census_api_key("YOUR KEY HERE", install = TRUE)` if you haven't already done that on this machine.
+
+## The data
+
+`texas_senate_2026_county_results.csv` has one row per Texas county (254 rows) with these columns:
+
+* `county` - the county name, no "County" suffix
+* `dem_margin_2026` - the Democrat's (Talarico's) margin over the Republican (Paxton) in the 2026 Senate race, in percentage points. Positive means Talarico led; negative means Paxton led. For example, `28.6` means Talarico +28.6 points; `-5.8` means Paxton +5.8 points.
+* `votes_2026` - total votes cast for the Senate race in that county in 2026 (all candidates combined)
+* `reported` - the percentage of the vote reported as of this data pull (mostly `>95%`)
+* `dem_margin_2024` - the same margin convention, but for Allred vs. Cruz in the November 2024 Senate race
+
+**Important limitation:** this file only has *margins* and the total number of ballots for ALL candidates counted so far, not each candidate's raw vote total.
+
+## Load libraries and settings
+
+**Task** Create a codeblock and load the appropriate packages and settings for this lab.
+
+```{r}
+library(tidyverse)
+library(tidycensus)
+library(janitor)
+```
+
+## Load the data
+
+**Task** Read in `texas_senate_2026_county_results.csv` and take a look at it.
+
+```{r}
+texas_senate_2026_county_results <- read_csv("data/texas_senate_2026_county_results.csv")
+```
+
+## Q 1: What was the average margin in counties that the Democratic candidate won? What about counties that the Republican candidate won?
+
+Dem avg margin 2026 = 27.46750
+Rep avg margin 2026 = -46.34393
+
+Dem avg margin 2024 = 15.39579
+Rep avg margin 2024 = -55.68932
+
+**Task** Create a column that labels whether the Democrat won the county or the Republican won the county in 2026.
+
+
+```{r}
+texas_senate_2026_county_results <- texas_senate_2026_county_results |>
+  mutate(won_2026 = case_when(
+    dem_margin_2026 > 0 ~ "Dem",
+    dem_margin_2026 < 0 ~ "Rep"
+  ))
+```
+
+**Task** Based on those categories, calculate the average margins in the counties that the Democrat won, and the average margin in the counties that the Republican won. In 2026*-Maya
+
+Side Note -Maya:
+filter (gimme rows for this condition) + select (gimme columns for this condition) are twins
+Think of filter as when you filter a column say in sheets or excel. Think of select as the one that's not filter so obviously it's the filtering horizontally.
+Another Side Note -Maya: group_by and summarize always go together for our cases
+
+```{r}
+Parties_avg_margins_texas_senate_2026 <- texas_senate_2026_county_results |>
+  group_by(won_2026) |>
+  summarize(avg_margin = mean(dem_margin_2026))
+```
+
+
+**Task** Repeat those steps for 2024
+
+```{r}
+texas_senate_2026_county_results <- texas_senate_2026_county_results |>
+  mutate(won_2024 = case_when(
+    dem_margin_2024 > 0 ~ "Dem",
+    dem_margin_2024 < 0 ~ "Rep"
+  ))
+```
+
+```{r}
+Parties_avg_margins_texas_senate_2024 <- texas_senate_2026_county_results |>
+  group_by(won_2024) |>
+  summarize(avg_margin = mean(dem_margin_2024))
+```
+
+**Task** Explain: did the average margin in counties the Democrat won in 2026 differ from the margin in 2024?
+Yes. Increase of about 12 percentage points from 2024 to 2026.
+
+## Q 2: The biggest swings
+
+"Swing" here means how much more (or less) Democratic a county became between 2024 and 2026.
+
+**Task** Create a new column, `swing`, that shows the change in the margin in 2026 compared to 2024. Then find the counties with the largest swing TOWARDS the Democrats.
+
+Top three largest swings towards Dem: Starr, Zapata, Maverick
+
+```{r}
+texas_senate_2026_county_results <- texas_senate_2026_county_results |>
+  mutate(
+    swing = dem_margin_2026 - dem_margin_2024
+  ) |>
+  arrange(desc(swing))
+```
+
+**Task** Did any counties swing AWAY from Democrats?
+
+Yes; Loving swung -0.14
+
+## Q 3: Votes cast per capita, by voting-age population
+
+We'll bring in Census Bureau population data with `tidycensus` to calculate a rough turnout measure: votes cast per adult (18+) resident.
+
+**Task** Make sure your Census API key is set, then use `get_acs()` to pull total population and population 18 and over for every Texas county, using the most recent 5-year American Community Survey (ACS5) data available: 2024.
+
+(To search for this variable, we're going to add /profile to the end of the load_variables call that we normally use, which will show us higher-level variables than the really granular ones we get without /profile. Then search for "18 years and over".)
+
+```{r}
+acs_vars_2024 <- load_variables(2024, "acs5/profile")
+```
+
+Note -Maya
+Searching in acs options dataframes, there are two dataframe codes with title "Estimate!!SEX AND AGE!!Total population!!18 years and over": DP05_0021 and DP05_0025. Try brining in both.
+- Reference Pre-Lab 7 for this part
+
+```{r}
+age18plus_2024Census1 <- get_acs(geography = "county", variables = "DP05_0021", year = 2024)
+age18plus_2024Census2 <- get_acs(geography = "county", variables = "DP05_0025", year = 2024)
+```
+^ These two dataframes look the same (same number obs/rows and variables/columns, same first three rows). Will use the first arbitrarily. Actually, I want to limit it to TX and name it something different. So I'll make a new dataframe.
+
+```{r}
+tx_county_population_18plus <- get_acs(geography = "county",
+                                       variables = "DP05_0021",
+                                       year = 2024,
+                                       state = "TX")
+tx_county_population_18plus
+```
+
+
+**Task** Clean up the county names in your Census dataframe so they match `tx_senate` (remove the " County, Texas" suffix), then join the two dataframes. (We did a version of this in this week's pre-lab!)
+
+```{r}
+tx_county_population_18plus <- tx_county_population_18plus |>
+  # Rename NAME column to County
+  rename(County = NAME) |>
+  # Strip " County, Texas" from names
+  mutate(County = str_to_title(str_remove_all(County, " County, Texas"))) |>
+  # Remove leading/trailing whitespace left over after removing text
+  mutate(County = str_trim(County, side = "both")) |>
+  # Rename estimate column to population
+  rename(population = estimate) |>
+  # Keep only the county and population columns
+  select(County, population)
+```
+
+```{r}
+# Uppercase or lowercase "county" must be consistent between dataframes so they can be joined.
+texas_senate_2026_county_results <- texas_senate_2026_county_results |>
+  rename(County = county)
+```
+
+
+```{r}
+tx_voters_18plus_per_1k <- tx_county_population_18plus |>
+  left_join(texas_senate_2026_county_results)
+
+tx_voters_18plus_per_1k
+```
+
+
+**Task** Create a `votes_per_capita` column showing the number of votes per 1,000 people, then find the 5 counties with the highest and the 5 with the lowest votes per capita.
+
+# I don't have votes_2024 from senate dataframe, so I use votes_2026 below
+
+5 highest votes per capita: Loving, Kenedy, Edwards, Roberts, Blanco
+5 lowest votes per capita: Dallam, Winkler, Ector, Mitchell, Frio
+
+```{r}
+tx_voters_18plus_per_1k <- tx_voters_18plus_per_1k |>
+  # Since the above join has ACS data only from 2024, I would actually want to use "votes_24" if that column existed in the original senate data (as in, actual data, not just column name). Since I don't have data for votes in 2024, I will pretend in the following that 2024 and 2026 were the same year.
+  mutate(votes_per_capita = votes_2026/population*1000) |>
+  # will do arrange(desc(votes_per_capita)), then arrange(votes_per_capita)
+  arrange(desc(votes_per_capita))
+  # Actually, I don't have to do with the ascending arrange function. Will just use clicking on column name in dataframe display to change order
+```
+
+
+***BONUS POINTS (2 Points)** Look closely at the counties with the *highest* votes-per-capita rate, especially the very top one. Does anything stand out? What might explain any unusually high rates (i.e., more votes cast than adult residents)?
+
+**Answer:** For Loving and Kenedy, more votes were cast in 2026 than there were adults in 2024.
+
+
+**BONUS POINTS: Make a map! (5 Points)** Decide whether you want to exclude any counties from the data based on the bonus question above, then decide on criteria for which counties should be excluded and write code to do so. Then, write the data a csv and create a choropleth map in Datawrapper showing the counties with the highest/lowest votes-per-capita in Texas. Provide a link to your map below:
+
+**Answer:**
+https://datawrapper.dwcdn.net/9gMdm/1/
+Hover mouse for customized tooltips.
+
+# Want population minus votes_2026 to be a positive number, indicating higher pop than votes.
+Pre Labs 3, maybe 4
+
+```{r}
+# Want population minus votes_2026 to be a positive number, indicating higher pop than votes.
+tx_voters_18plus_per_1k <- tx_voters_18plus_per_1k |>
+  mutate(pop_minus_votes_2026 = population - votes_2026)
+```
+
+```{r}
+# I notice that, in addition to Kenedy and Loving, I am about to eliminate also the four counties that have 2024 pop data but no corresponding senate data (so show with “NA”), Dewitt, Mcculloch, Mclennan, Mcmullen.
+tx_voters_cleanedish_18plus_per_1k <- tx_voters_18plus_per_1k |>
+  filter(pop_minus_votes_2026 >= 0)
+```
+
+```{r}
+tx_votes_per_capita_18plus <- tx_voters_cleanedish_18plus_per_1k |>
+  select(County, votes_per_capita)
+```
+
+write_csv -> prelab 9
+
+```{r}
+write_csv(tx_votes_per_capita_18plus, "data/tx_votes_per_capita_18plus.csv")
+```
+
+
+
+## Q 4: Does a demographic variable line up with the vote?
+
+**Task** Take another look at what ACS5 variables are available for 2024
+
+```{r}
+acs_vars_2024
+```
+
+**Task** Pick one additional demographic variable you're curious about (income, race/ethnicity, education, age, housing, health insurance - whatever interests you) and pull it for every Texas county with `get_acs()`. Pick one that you think might have a relationship with how people voted. Note that there are variables that show raw numbers ("estimate") and those that show percents ("percent").
+
+```{r}
+# pulling data for median household income 2024 (estimate)
+tx_median_household_income_counties <- get_acs(geography = "county", variables = "DP03_0062", year = 2024, state = "TX")
+```
+
+**Task** Join it to your combined dataframe, then write the dataframe to a csv.
+
+```{r}
+# First this
+
+tx_median_household_income_counties <- tx_median_household_income_counties |>
+  # Rename NAME column to County
+  rename(County = NAME) |>
+  # Strip " County, Texas" from names
+  mutate(County = str_to_title(str_remove_all(County, " County, Texas"))) |>
+  # Remove leading/trailing whitespace left over after removing text
+  mutate(County = str_trim(County, side = "both")) |>
+  # Rename estimate column to median_household_income
+  rename(median_household_income = estimate) |>
+  # Keep only the county and population columns
+  select(County, median_household_income)
+```
+
+```{r}
+tx_voters_cleanedish_18plus_per_1k <- tx_voters_cleanedish_18plus_per_1k |>
+  left_join(tx_median_household_income_counties)
+```
+
+```{r}
+tx_dem_margin_and_household_income <- tx_voters_cleanedish_18plus_per_1k |>
+  select(County, median_household_income, dem_margin_2026)
+```
+
+```{r}
+write_csv(tx_dem_margin_and_household_income, "data/tx_dem_margin_and_household_income.csv")
+```
+
+
+**Task** Upload the csv to Datawrapper and make a SCATTERPLOT. Scatterplots are used to explore the relationship between two variables. In this case, you're going to explore the relationship between the Democratic margin in 2026 and the demographic variable you chose.
+
+**Task** Explain what the scatterplot shows you. Does it look like there's a meaningful relationship between the Democratic margin in 2026 and the demographic variable?
+
+**Answer:**
+Yes, meaningful relationship. Most Texan households with median incomes less than $80K voted republican in the 2026 senate race.
+
+Side note: I wish I could figure out how to make the county dots with positive democratic margins a different color from county dots with negative democratic margins, if it's possible.
+
+**Task** Add a link to your datawrapper scatterplot here:
+
+**Answer**
+https://datawrapper.dwcdn.net/oMvrH/3/ 
+Hover mouse for customized tooltips.
+
+**Task** If there was a relationship between your demographic variable and how people voted, think critically about the relationship. Do you think the demographic variable you chose is the REASON why people voted (or didn't vote) a certain way? Or could that variable be related to a *different* characteristic about those people, which might have more to do with how they voted? Explain your thinking either way in a few sentences.
+
+It's hard to say exactly why Texans voted this way-- it's likely a combination of factors. I know rural communities have lower median household incomes on average than urban communities and also tend to be more republican. Urban areas also tend to have higher proportions of college-educated residents, and counties with more college-educated residents tend to be more democratic. (But the "why"s of those associations are complex and interconnected as well. I don't understand all of it and would like to learn more about these correlations!)
+
+Was curious about geographical overlap so made this: https://docs.google.com/document/d/1ovRRA37zDRlTR1H9fkgifQZHHonJdKkiCw5azjcbP1I/edit?usp=sharing
+
+If there WASN'T a relationship, tell me a) why you thought there would be a relationship, and b) what might explain why there doesn't seem to be a relationship after all.
